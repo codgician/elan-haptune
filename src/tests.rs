@@ -189,12 +189,43 @@ fn complete_update_validated_before_any_write_including_unchanged_drag() {
     for update in [
         threshold_update(Some(119), None, None),
         threshold_update(None, Some(155), None),
-        threshold_update(None, None, Some(0)),
-        threshold_update(Some(65535), None, None),
+        threshold_update(None, Some(150), None),
+        threshold_update(None, None, Some(150)),
+        threshold_update(None, None, Some(151)),
+        threshold_update(Some(0), Some(0), Some(0)),
     ] {
         assert!(elan::apply(&mut io, &update, false).is_err());
     }
     assert!(io.0.writes.is_empty());
+}
+
+#[test]
+fn lower_thresholds_support_dry_run_apply_and_rollback() {
+    let initial = [150, 125, 125, 0xa303];
+    let update = threshold_update(Some(115), Some(90), Some(90));
+    let mut io = Protocol(Pad::new(initial));
+    let report = elan::apply(&mut io, &update, true).unwrap();
+    assert_eq!(report.status, "dry_run");
+    assert_eq!(report.requested["press_threshold"], 115);
+    assert_eq!(report.requested["release_threshold"], 90);
+    assert_eq!(report.requested["drag_release_threshold"], 90);
+    assert!(io.0.writes.is_empty());
+    assert_eq!(
+        elan::apply(&mut io, &update, false).unwrap().status,
+        "applied"
+    );
+    assert_eq!(io.0.state(), State([115, 90, 90, 0xa303]));
+    assert_eq!(io.0.writes, [(0x03a3, 90), (0x03a4, 90), (0x03a2, 115)]);
+
+    for failure in 1..=3 {
+        let mut io = Protocol(Pad::new(initial));
+        io.0.fail_writes = vec![failure];
+        io.0.fail_after_apply = true;
+        let report = elan::apply(&mut io, &update, false).unwrap();
+        assert_eq!(report.status, "failed");
+        assert_eq!(report.rollback.unwrap().status, "restored");
+        assert_eq!(io.0.state(), State(initial));
+    }
 }
 
 #[test]
@@ -216,16 +247,16 @@ fn lower_releases_before_press_and_raise_press_before_releases() {
 }
 
 #[test]
-fn all_policy_endpoint_transitions_preserve_hysteresis() {
-    for p in [120, 150, 192] {
-        for r in [95, 125, 154] {
-            for d in [60, 100, 125] {
+fn transitions_including_encoding_boundaries_preserve_hysteresis() {
+    for p in [1, 115, 150, u16::MAX] {
+        for r in [0, 90, 125, u16::MAX - 1] {
+            for d in [0, 90, 125, u16::MAX - 1] {
                 if r >= p || d >= p {
                     continue;
                 }
-                for np in [120, 150, 192] {
-                    for nr in [95, 125, 154] {
-                        for nd in [60, 100, 125] {
+                for np in [1, 115, 150, u16::MAX] {
+                    for nr in [0, 90, 125, u16::MAX - 1] {
+                        for nd in [0, 90, 125, u16::MAX - 1] {
                             if nr >= np || nd >= np {
                                 continue;
                             }

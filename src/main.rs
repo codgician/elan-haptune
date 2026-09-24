@@ -19,7 +19,7 @@ use std::{
     name = "elan-haptune",
     version,
     about = "One-shot ELAN2703 haptic touchpad settings",
-    after_help = "Raw threshold units are device-specific. Firmware limits are unknown; see README for conservative CLI bounds.\nQueries use SET_FEATURE but do not mutate parameters. No persistence across suspend/reboot is promised."
+    after_help = "Raw threshold units are device-specific unsigned 16-bit integers. Both releases must be below press; firmware limits are unknown.\nQueries use SET_FEATURE but do not mutate parameters. No persistence across suspend/reboot is promised."
 )]
 struct Cli {
     /// Emit schema-versioned JSON (diagnostics remain on stderr)
@@ -59,13 +59,13 @@ struct Set {
     /// Query and validate, but never issue parameter writes
     #[arg(long)]
     dry_run: bool,
-    /// Press threshold in raw units (CLI policy: 120..=192)
+    /// Press threshold in raw units (unsigned 16-bit integer)
     #[arg(long)]
     press_threshold: Option<u16>,
-    /// Regular release in raw units (CLI policy: 95..=154)
+    /// Regular release in raw units (must be below press)
     #[arg(long)]
     release_threshold: Option<u16>,
-    /// Independent drag release in raw units (CLI policy: 60..=125)
+    /// Independent drag release in raw units (must be below press)
     #[arg(long)]
     drag_release_threshold: Option<u16>,
     /// Vendor-documented feedback enable bit; preserve all other control bits
@@ -94,7 +94,7 @@ fn execute(command: Command) -> Result<(Value, Option<Error>)> {
                 ],
                 haptics: set.haptics.map(|v| matches!(v, Switch::On)),
             };
-            update.validate()?; // Reject empty / out-of-policy input before device access.
+            update.validate()?; // Reject empty input before device access.
             let (mut device, mut io) = device::select(set.selection.device.as_deref())?;
             device.support = "compatible";
             let report = elan::apply(&mut io, &update, set.dry_run)?;
@@ -174,7 +174,7 @@ fn human(out: &mut impl Write, command: &str, data: &Value) -> io::Result<()> {
         }
         writeln!(
             out,
-            "Raw units; firmware ranges unknown. CLI bounds: press 120..192, release 95..154, drag release 60..125. Both releases must be below press."
+            "Raw unsigned 16-bit units (0..65535); firmware ranges unknown. Both releases must be below press."
         )?;
         writeln!(
             out,

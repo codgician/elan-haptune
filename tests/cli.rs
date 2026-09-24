@@ -22,7 +22,6 @@ fn invalid_commands_have_json_errors_and_exit_two_before_device_access() {
     for args in [
         vec!["--json", "set"],
         vec!["set", "--json", "--dry-run"],
-        vec!["set", "--json", "--press-threshold", "119"],
         vec!["set", "--json", "--press-threshold", "65536"],
         vec!["set", "--json", "--release-threshold", "-1"],
         vec!["set", "--json", "--haptics", "maybe"],
@@ -45,6 +44,33 @@ fn invalid_commands_have_json_errors_and_exit_two_before_device_access() {
         assert_eq!(value["ok"], false);
         assert_eq!(value["error"]["exit_code"], 2);
         assert!(!output.stderr.is_empty());
+    }
+}
+
+#[test]
+fn thresholds_without_policy_bounds_reach_device_selection() {
+    // Missing selector guarantees these CLI checks cannot issue hardware reports.
+    for (press, release, drag) in [
+        ("115", "90", "90"),
+        ("1", "0", "0"),
+        ("65535", "65534", "65534"),
+    ] {
+        let output = cli(&[
+            "set",
+            "--json",
+            "--dry-run",
+            "--device",
+            "/dev/elan-haptune-test-nonexistent",
+            "--press-threshold",
+            press,
+            "--release-threshold",
+            release,
+            "--drag-release-threshold",
+            drag,
+        ]);
+        assert_eq!(output.status.code(), Some(3), "{output:?}");
+        let value: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["error"]["kind"], "no_device");
     }
 }
 

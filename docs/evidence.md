@@ -64,15 +64,14 @@ Actual recovered user prompts report successful 120/100 and a preference for
 120/95, but the final triple/command transcript is missing. We do not claim its
 drag value, firmware range, or persistence is known.
 
-No range-query protocol was established. The wire transports 16-bit integers,
-which is not evidence that all 16-bit values are sensible thresholds. The CLI
-therefore chooses a conservative local request envelope: press 120..192, regular
-release 95..154, drag release 60..125. These are a software policy assembled from
-the retained values, **not measured hardware limits**, and include untested
-interpolations. The positive, release-below-press constraint is likewise an
-explicit hysteresis policy supported by the observed presets/experiments, not a
-claimed firmware specification. Unknown actual readings are never substituted
-with a preset. Widening the policy requires new evidence and a code change.
+No range-query protocol was established. The wire transports unsigned 16-bit
+integers (0..65535), which specifies encoding, not firmware limits. At the user's
+request on 2026-09-24, the CLI's preset-derived minimum/maximum restrictions were
+removed, including the positivity check on release values. Threshold validation
+now checks only that each release is strictly below press; there is no ordering
+constraint between the two releases. Unknown actual readings are never substituted
+with a preset. Software tests cover 115/90/90, zero releases, and encoding boundaries;
+these do not establish live hardware behavior.
 
 ## Design and verification
 

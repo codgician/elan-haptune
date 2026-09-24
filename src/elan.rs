@@ -12,8 +12,6 @@ const NAMES: [&str; 4] = [
     "haptics",
 ];
 const HAPTICS: u16 = 0x0100;
-// CLI policy, NOT claimed firmware limits. See docs/evidence.md.
-pub const BOUNDS: [(u16, u16); 3] = [(120, 192), (95, 154), (60, 125)];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct State(pub [u16; 4]);
@@ -30,9 +28,9 @@ impl State {
         serde_json::json!({"press_threshold": self.0[0], "release_threshold": self.0[1], "drag_release_threshold": self.0[2], "haptics": if self.0[3] & HAPTICS != 0 { "on" } else { "off" }})
     }
     fn validate(self) -> Result<()> {
-        if self.0[..3].contains(&0) || self.0[1] >= self.0[0] || self.0[2] >= self.0[0] {
+        if self.0[1] >= self.0[0] || self.0[2] >= self.0[0] {
             return Err(Error::invalid(
-                "both release thresholds must be positive and strictly below press threshold (CLI hysteresis policy)",
+                "both release thresholds must be strictly below press threshold",
             ));
         }
         Ok(())
@@ -49,17 +47,6 @@ impl Update {
     pub fn validate(&self) -> Result<()> {
         if self.thresholds.iter().all(Option::is_none) && self.haptics.is_none() {
             return Err(Error::invalid("set requires at least one setting"));
-        }
-        for (i, value) in self.thresholds.iter().enumerate() {
-            if let Some(value) = value {
-                let (min, max) = BOUNDS[i];
-                if !(min..=max).contains(value) {
-                    return Err(Error::invalid(format!(
-                        "{} must be {min}..={max} raw units under this CLI's conservative policy; firmware limits are unknown",
-                        NAMES[i]
-                    )));
-                }
-            }
         }
         Ok(())
     }
@@ -285,12 +272,9 @@ pub fn apply<T: FeatureIo>(
 pub fn capabilities() -> serde_json::Value {
     serde_json::json!({
         "units": "device_raw", "firmware_ranges": null,
-        "cli_threshold_bounds": {
-            "press_threshold": {"min": BOUNDS[0].0, "max": BOUNDS[0].1},
-            "release_threshold": {"min": BOUNDS[1].0, "max": BOUNDS[1].1},
-            "drag_release_threshold": {"min": BOUNDS[2].0, "max": BOUNDS[2].1}
-        },
-        "constraints": "both releases positive and strictly below press; unspecified values preserved",
+        "cli_threshold_bounds": null,
+        "threshold_encoding": {"type": "u16", "min": 0, "max": 65535},
+        "constraints": "both releases strictly below press; unspecified values preserved",
         "haptics": {"read": true, "write": true, "evidence": "vendor bit 8; not hardware-validated by this project"},
         "haptic_level": {"read": false, "write": false, "reason": "physical interpretation and safe target behavior unverified"}
     })

@@ -50,21 +50,14 @@ reported; the CLI never elevates privileges or changes permissions.
 ## Validation and failure behavior
 
 Thresholds are device raw units, not force measurements or percentages. Firmware
-limits are unknown (`firmware_ranges: null`). The CLI intentionally restricts
-explicit threshold requests to these **local policy bounds**, derived from the
-envelope of retained vendor presets, probe values, and user reports:
-
-| Setting | CLI bounds (inclusive) |
-| --- | --- |
-| Press | 120–192 |
-| Regular release | 95–154 |
-| Drag release | 60–125 |
-
-These bounds do not establish firmware legality or prove that every intermediate
-value/combination is safe. Both release thresholds must be positive and strictly
-below press. Unspecified fields stay unchanged, including values outside the CLI
-bounds if the complete threshold state satisfies hysteresis. No fallback values
-or guessed defaults are used. Regular release and drag release are independent.
+limits are unknown (`firmware_ranges: null`). There are no software policy bounds
+(`cli_threshold_bounds: null`). Values must fit the protocol's unsigned 16-bit
+encoding (0..65535), and both release thresholds must be strictly below press.
+Zero release values are accepted. Regular release and drag release are independent;
+neither is required to be below the other. Unspecified fields stay unchanged, and
+the complete resulting state must satisfy these relative constraints. No fallback
+values or guessed defaults are used. Passing validation does not establish hardware
+behavior; 115/90/90 is covered by software tests, not a live hardware test.
 
 The CLI holds an exclusive, nonblocking advisory `flock` on the physical sysfs
 directory from before the first query through verification/recovery. Concurrent
